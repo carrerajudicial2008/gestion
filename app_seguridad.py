@@ -4,7 +4,6 @@ from datetime import datetime
 import requests
 
 # --- CONFIGURACIÓN ---
-# Tu URL de destino real
 URL_APP_PRINCIPAL = "https://vazquezpariente.streamlit.app" 
 
 def obtener_ubicacion():
@@ -34,24 +33,30 @@ if "id" in params:
             "Ciudad": ciudad,
             "Alerta": "NORMAL"
         }
-        
         df = pd.read_excel("SEGURIDAD.xlsx")
         df = pd.concat([df, pd.DataFrame([nueva_fila])], ignore_index=True)
         df.to_excel("SEGURIDAD.xlsx", index=False)
     except Exception:
         pass 
 
-    # --- PANTALLA DE REDIRECCIÓN ---
-    st.success(f"¡Acceso verificado para {cli}!")
-    st.write("Redirigiendo al temario...")
-
+    # --- PANTALLA DE ACCESO ---
+    st.success(f"✅ ¡Hola {cli}! Acceso verificado correctamente.")
+    
     enlace_final = f"{URL_APP_PRINCIPAL}/?id={id_l}"
 
-    # BOTÓN MANUAL (Es lo más seguro para evitar el bucle de redirecciones)
-    st.link_button("HAGA CLIC AQUÍ PARA ENTRAR", enlace_final)
-    
-    # Redirección automática un poco más lenta para no marear al navegador
-    st.markdown(f'<meta http-equiv="refresh" content="4;URL={enlace_final}">', unsafe_allow_html=True)
+    # Creamos un botón grande que abra en pestaña nueva (target="_blank")
+    # Esto es lo que rompe el error de "too many redirects"
+    st.markdown(f"""
+        <div style="text-align: center; margin-top: 30px;">
+            <a href="{enlace_final}" target="_blank" 
+               style="text-decoration: none; background-color: #28a745; color: white; padding: 20px 40px; border-radius: 15px; font-weight: bold; font-size: 22px; border: 2px solid #1e7e34;">
+               🚀 PULSA AQUÍ PARA ENTRAR
+            </a>
+            <p style="margin-top: 20px; color: #666;">
+                El temario se abrirá en una ventana nueva para asegurar tu conexión.
+            </p>
+        </div>
+    """, unsafe_allow_html=True)
 
 else:
-    st.warning("Por favor, escanea un código QR válido.")
+    st.warning("⚠️ Por favor, escanea un código QR válido para acceder.")
