@@ -1,39 +1,37 @@
 import streamlit as st
 import pandas as pd
 
-# CONFIGURACIÓN DE LA WEB (Tu diseño original)
-st.set_page_config(page_title="Verificación de Temarios", page_icon="⚖️")
+# 1. Configuración visual
+st.set_page_config(page_title="Verificador Oficial", page_icon="🛡️")
 
-st.markdown("""
-    <style>
-    .main { background-color: #f5f7f9; }
-    .status-box { padding: 20px; border-radius: 15px; text-align: center; font-weight: bold; }
-    </style>
-    """, unsafe_allow_html=True)
+# 2. Leer el histórico que genera tu script de Python
+try:
+    # Intentamos leer el Excel que estará en el mismo repo
+    df = pd.read_excel("HISTORICO.xlsx", engine='openpyxl')
+    df.columns = [str(c).strip().upper() for c in df.columns]
+except Exception as e:
+    st.error("Base de datos no encontrada o error al leer.")
+    st.stop()
 
-st.title("⚖️ Verificación de Autenticidad")
-st.subheader("Temarios Vázquez Pariente")
-
-# Cargar el histórico que sube el otro script
-@st.cache_data(ttl=60)
-def cargar_datos():
-    try:
-        return pd.read_excel("HISTORICO.xlsx", dtype=str)
-    except:
-        return None
-
-df = cargar_datos()
+# 3. Lógica de escaneo (Captura datos del QR)
+# El QR envía: ?id=TOKEN123&libro=CO
 params = st.query_params
-token = params.get("id")
 
-if token and df is not None:
-    res = df[df['TOKEN'] == token]
-    if not res.empty:
-        st.balloons()
-        st.success(f"### ✅ DOCUMENTO VÁLIDO")
-        st.write(f"**Autorizado para:** {res.iloc[0]['NOMBRE'].upper()}")
-        st.write(f"**Libro:** {params.get('libro')}")
+if "id" in params:
+    token_cliente = params["id"]
+    libro_cod = params.get("libro", "Desconocido")
+    
+    # Buscar el token en la columna 'TOKEN'
+    coincidencia = df[df["TOKEN"] == token_cliente]
+    
+    if not coincidencia.empty:
+        st.success("### ✅ EJEMPLAR AUTÉNTICO")
+        nombre = coincidencia.iloc[0].get("NOMBRE", "Usuario").title()
+        st.write(f"Este libro pertenece a: **{nombre}**")
+        st.write(f"Código de materia: **{libro_cod}**")
+        st.balloons() 
     else:
-        st.error("❌ CÓDIGO NO ENCONTRADO")
+        st.error("### ❌ CÓDIGO NO VÁLIDO")
+        st.write("Este ejemplar no figura en nuestros registros oficiales.")
 else:
-    st.info("Escanee el QR para verificar.")
+    st.info("Por favor, escanea el código QR de tu libro para verificar la autenticidad.")
