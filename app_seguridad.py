@@ -8,7 +8,8 @@ import io
 # --- CONFIGURACIÓN ---
 URL_APP_PRINCIPAL = "https://vazquezpariente.streamlit.app"
 REPO_NAME = "carrerajudicial2008/gestion" 
-EXCEL_FILE = "SEGURIDAD.xlsx"
+EXCEL_SEGURIDAD = "SEGURIDAD.xlsx"
+EXCEL_HISTORICO = "HISTORICO.xlsx"  # Tu base de datos real
 
 def obtener_ubicacion():
     try:
@@ -19,76 +20,50 @@ def obtener_ubicacion():
 
 def guardar_en_github(nueva_fila):
     try:
-        if "GITHUB_TOKEN" not in st.secrets:
-            st.error("Falta GITHUB_TOKEN en Secrets")
-            return False
-            
         g = Github(st.secrets["GITHUB_TOKEN"])
         repo = g.get_repo(REPO_NAME)
-        
-        # Intentar obtener el archivo
-        contents = repo.get_contents(EXCEL_FILE)
+        contents = repo.get_contents(EXCEL_SEGURIDAD)
         df = pd.read_excel(io.BytesIO(contents.decoded_content))
-        
-        # Añadir datos
-        df_nueva = pd.DataFrame([nueva_fila])
-        df = pd.concat([df, df_nueva], ignore_index=True)
-        
-        # Convertir a Excel
+        df = pd.concat([df, pd.DataFrame([nueva_fila])], ignore_index=True)
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
             df.to_excel(writer, index=False)
-        
-        # Subir
-        repo.update_file(
-            contents.path, 
-            f"Registro: {nueva_fila['Cliente']}", 
-            output.getvalue(), 
-            contents.sha
-        )
+        repo.update_file(contents.path, f"Registro: {nueva_fila['Cliente']}", output.getvalue(), contents.sha)
         return True
     except Exception as e:
-        st.error(f"Error detallado: {e}")
+        st.error(f"Error al registrar: {e}")
         return False
 
-# --- LÓGICA PRINCIPAL ---
-st.title("Sistema de Verificación")
-
-# Usamos st.query_params directamente
+# --- LÓGICA DE VERIFICACIÓN ---
 params = st.query_params
-
 if "id" in params:
     id_l = params["id"]
-    cli = params.get("u", "Usuario_Anonimo")
-    
-    # REGISTRO OBLIGATORIO (Sin st.session_state para probar que funcione siempre)
-    ip, ciudad = obtener_ubicacion()
-    datos_registro = {
-        "Fecha_Hora": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "ID_Libro": id_l,
-        "Cliente": cli,
-        "IP": ip,
-        "Dispositivo": "Web_Access",
-        "Ciudad": ciudad,
-        "Alerta": "TEST"
-    }
-    
-    st.info(f"Registrando acceso para {cli}...")
-    
-    # LLAMADA A LA FUNCIÓN
-    if guardar_en_github(datos_registro):
-        st.success(f"✅ ¡Hola {cli}! Acceso registrado en la nube.")
+    cli = params.get("u", "Usuario")
+
+    # 1. Verificar si el ID existe en HISTORICO.xlsx
+    try:
+        g = Github(st.secrets["GITHUB_TOKEN"])
+        repo = g.get_repo(REPO_NAME)
+        contents_h = repo.get_contents(EXCEL_HISTORICO)
+        df_h = pd.read_excel(io.BytesIO(contents_h.decoded_content))
         
-        enlace_final = f"{URL_APP_PRINCIPAL}/?id={id_l}"
-        st.markdown(f"""
-            <div style="text-align: center; margin-top: 30px;">
-                <a href="{enlace_final}" target="_blank" 
-                   style="text-decoration: none; background-color: #28a745; color: white; padding: 20px 40px; border-radius: 15px; font-weight: bold; font-size: 22px;">
-                   🚀 PULSA AQUÍ PARA ENTRAR
-                </a>
-            </div>
-        """, unsafe_allow_html=True)
-    else:
-        st.error("No se pudo validar el registro. Inténtalo de nuevo.")
+        # Comprobamos si el ID está en la columna correspondiente (ajusta el nombre 'ID_LIBRO' si es distinto)
+        if id_l in df_h.values:
+            ip, ciudad = obtener_ubicacion()
+            datos_registro = {
+                "Fecha_Hora": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "ID_Libro": id_l,
+                "Cliente": cli,
+                "IP": ip,
+                "Ciudad": ciudad
+            }
+            
+            if guardar_en_github(datos_registro):
+                st.success(f"✅ Acceso verificado para {cli}")
+                st.markdown(f'<a href="{URL_APP_PRINCIPAL}/?id={id_l}" target="_self" style="background-color: #28a745; color: white; padding: 15px; border-radius: 10px; text-decoration: none;">🚀 ENTRAR AL TEMARIO</a>', unsafe_allow_html=True)
+        else:
+            st.error("❌ CÓDIGO NO VÁLIDO. Este ejemplar no figura en el HISTORICO.")
+    except Exception as e:
+        st.error(f"Error al conectar con la base de datos: {e}")
 else:
-    st.warning("⚠️ Esperando código QR...")
+    st.warning("Esperando código QR...")
